@@ -1,0 +1,1272 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>vi3us — Злам клітинної системи</title>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Exo+2:wght@100;300;400;700;900&family=Orbitron:wght@400;700;900&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #020408;
+    --bg2: #050d15;
+    --green: #00ff88;
+    --red: #ff2244;
+    --cyan: #00eeff;
+    --amber: #ffbb00;
+    --dim: #1a2a1a;
+    --text: #c8e8c8;
+    --muted: #4a6a4a;
+    --panel: rgba(0,255,136,0.04);
+    --border: rgba(0,255,136,0.15);
+  }
+
+  * { margin:0; padding:0; box-sizing:border-box; }
+
+  html { scroll-behavior: smooth; scroll-snap-type: y mandatory; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Exo 2', sans-serif;
+    overflow-x: hidden;
+    cursor: crosshair;
+  }
+
+  /* SCANLINE OVERLAY */
+  body::before {
+    content:'';
+    position:fixed;
+    inset:0;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      rgba(0,0,0,0.15) 2px,
+      rgba(0,0,0,0.15) 4px
+    );
+    pointer-events:none;
+    z-index:9999;
+  }
+
+  /* NOISE */
+  body::after {
+    content:'';
+    position:fixed;
+    inset:0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
+    pointer-events:none;
+    z-index:9998;
+    opacity:0.4;
+  }
+
+  /* NAV */
+  nav {
+    position:fixed;
+    top:0; left:0; right:0;
+    z-index:1000;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    padding:16px 48px;
+    background: linear-gradient(180deg, rgba(2,4,8,0.95) 0%, transparent 100%);
+    border-bottom: 1px solid var(--border);
+  }
+
+  .nav-logo {
+    font-family:'Orbitron', monospace;
+    font-size:22px;
+    font-weight:900;
+    color: var(--green);
+    letter-spacing:4px;
+    text-shadow: 0 0 20px var(--green), 0 0 40px rgba(0,255,136,0.3);
+  }
+
+  .nav-logo span { color: var(--red); }
+
+  .nav-dots {
+    display:flex;
+    gap:8px;
+    align-items:center;
+  }
+
+  .nav-dot {
+    width:8px; height:8px;
+    border-radius:50%;
+    background: var(--muted);
+    cursor:pointer;
+    transition: all 0.3s;
+    border: 1px solid transparent;
+  }
+
+  .nav-dot.active {
+    background: var(--green);
+    box-shadow: 0 0 10px var(--green);
+    border-color: var(--green);
+  }
+
+  .nav-counter {
+    font-family:'Share Tech Mono', monospace;
+    font-size:11px;
+    color: var(--muted);
+    letter-spacing:2px;
+  }
+
+  /* SECTIONS */
+  section {
+    min-height: 100vh;
+    scroll-snap-align: start;
+    display:flex;
+    flex-direction:column;
+    justify-content:center;
+    padding: 100px 80px 60px;
+    position:relative;
+    overflow:hidden;
+    border-bottom: 1px solid var(--border);
+  }
+
+  /* GRID BG */
+  .grid-bg {
+    position:absolute;
+    inset:0;
+    background-image:
+      linear-gradient(rgba(0,255,136,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,255,136,0.03) 1px, transparent 1px);
+    background-size: 60px 60px;
+    pointer-events:none;
+  }
+
+  /* SLIDE LABELS */
+  .slide-label {
+    font-family:'Share Tech Mono', monospace;
+    font-size:11px;
+    color: var(--muted);
+    letter-spacing:4px;
+    text-transform:uppercase;
+    margin-bottom:24px;
+    display:flex;
+    align-items:center;
+    gap:12px;
+  }
+
+  .slide-label::before {
+    content:'';
+    display:block;
+    width:40px;
+    height:1px;
+    background: var(--green);
+  }
+
+  /* HEADLINES */
+  h1 {
+    font-family:'Orbitron', monospace;
+    font-size:clamp(48px, 8vw, 120px);
+    font-weight:900;
+    line-height:0.9;
+    letter-spacing:-2px;
+    color: var(--green);
+    text-shadow: 0 0 40px rgba(0,255,136,0.4), 0 0 80px rgba(0,255,136,0.1);
+  }
+
+  h1 .accent { color: var(--red); text-shadow: 0 0 40px rgba(255,34,68,0.5); }
+
+  h2 {
+    font-family:'Orbitron', monospace;
+    font-size:clamp(28px, 4vw, 56px);
+    font-weight:700;
+    color: var(--green);
+    letter-spacing:2px;
+    margin-bottom:16px;
+    text-shadow: 0 0 20px rgba(0,255,136,0.3);
+  }
+
+  h3 {
+    font-family:'Exo 2', sans-serif;
+    font-size:clamp(16px, 2vw, 24px);
+    font-weight:300;
+    color: var(--cyan);
+    letter-spacing:3px;
+    margin-bottom:32px;
+  }
+
+  p {
+    font-size:16px;
+    line-height:1.8;
+    color: var(--text);
+    max-width:600px;
+    font-weight:300;
+  }
+
+  /* ========== SLIDE 1: TITLE ========== */
+  #s1 {
+    background: radial-gradient(ellipse 80% 60% at 60% 50%, rgba(0,255,136,0.06) 0%, transparent 70%),
+                radial-gradient(ellipse 40% 40% at 20% 80%, rgba(255,34,68,0.05) 0%, transparent 60%),
+                var(--bg);
+    justify-content: center;
+    align-items: flex-start;
+  }
+
+  .title-sub {
+    font-family:'Share Tech Mono', monospace;
+    font-size:14px;
+    color: var(--amber);
+    letter-spacing:6px;
+    margin-bottom:20px;
+    animation: blink 2s step-end infinite;
+  }
+
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+  .title-desc {
+    margin-top:40px;
+    font-family:'Share Tech Mono', monospace;
+    font-size:13px;
+    color: var(--muted);
+    letter-spacing:2px;
+    line-height:2;
+    border-left: 2px solid var(--green);
+    padding-left:20px;
+  }
+
+  .virus-art {
+    position:absolute;
+    right:80px;
+    top:50%;
+    transform: translateY(-50%);
+    width:400px;
+    height:400px;
+    opacity:0.7;
+  }
+
+  /* Floating particles */
+  .particles {
+    position:absolute;
+    inset:0;
+    pointer-events:none;
+  }
+
+  .particle {
+    position:absolute;
+    width:2px;
+    height:2px;
+    background: var(--green);
+    border-radius:50%;
+    animation: float linear infinite;
+    opacity:0;
+  }
+
+  @keyframes float {
+    0% { transform:translateY(100vh) translateX(0); opacity:0; }
+    10% { opacity:1; }
+    90% { opacity:0.5; }
+    100% { transform:translateY(-100px) translateX(var(--dx,20px)); opacity:0; }
+  }
+
+  /* ========== SLIDE 2: INTRO ========== */
+  #s2 { background: var(--bg2); }
+
+  .code-block {
+    font-family:'Share Tech Mono', monospace;
+    font-size:13px;
+    background: rgba(0,255,136,0.04);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--green);
+    padding:24px;
+    margin-top:32px;
+    max-width:600px;
+    line-height:2;
+    color: var(--green);
+    position:relative;
+  }
+
+  .code-block .comment { color: var(--muted); }
+  .code-block .keyword { color: var(--cyan); }
+  .code-block .value { color: var(--amber); }
+
+  .code-label {
+    position:absolute;
+    top:-10px; left:16px;
+    background: var(--bg2);
+    padding:0 8px;
+    font-size:10px;
+    color: var(--muted);
+    letter-spacing:2px;
+  }
+
+  /* ========== SLIDE 3: ANATOMY ========== */
+  #s3 { background: var(--bg); }
+
+  .anatomy-grid {
+    display:grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap:24px;
+    margin-top:40px;
+    max-width:900px;
+  }
+
+  .anatomy-card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    padding:28px;
+    position:relative;
+    transition: all 0.3s;
+  }
+
+  .anatomy-card:hover {
+    border-color: var(--green);
+    background: rgba(0,255,136,0.08);
+    transform: translateY(-4px);
+    box-shadow: 0 20px 40px rgba(0,255,136,0.1);
+  }
+
+  .anatomy-card::before {
+    content: attr(data-num);
+    position:absolute;
+    top:12px; right:16px;
+    font-family:'Orbitron', monospace;
+    font-size:32px;
+    font-weight:900;
+    color: rgba(0,255,136,0.08);
+    line-height:1;
+  }
+
+  .anatomy-icon {
+    font-size:28px;
+    margin-bottom:16px;
+    display:block;
+  }
+
+  .anatomy-card h4 {
+    font-family:'Orbitron', monospace;
+    font-size:12px;
+    color: var(--green);
+    letter-spacing:2px;
+    margin-bottom:8px;
+    font-weight:700;
+  }
+
+  .anatomy-card p {
+    font-size:13px;
+    color: var(--muted);
+    font-weight:300;
+    line-height:1.7;
+  }
+
+  /* ========== STAGE SLIDES 4-9 ========== */
+  .stage-number {
+    font-family:'Orbitron', monospace;
+    font-size:clamp(80px, 15vw, 200px);
+    font-weight:900;
+    position:absolute;
+    right:-20px;
+    top:50%;
+    transform: translateY(-50%);
+    color: rgba(0,255,136,0.04);
+    line-height:1;
+    pointer-events:none;
+    letter-spacing:-10px;
+  }
+
+  .stage-badge {
+    display:inline-block;
+    font-family:'Share Tech Mono', monospace;
+    font-size:11px;
+    color: var(--red);
+    border: 1px solid var(--red);
+    padding:4px 12px;
+    letter-spacing:3px;
+    margin-bottom:20px;
+    text-transform:uppercase;
+  }
+
+  .process-steps {
+    display:flex;
+    flex-direction:column;
+    gap:16px;
+    margin-top:32px;
+    max-width:560px;
+  }
+
+  .step {
+    display:flex;
+    align-items:flex-start;
+    gap:16px;
+    padding:16px;
+    border: 1px solid transparent;
+    transition: all 0.3s;
+  }
+
+  .step:hover {
+    border-color: var(--border);
+    background: var(--panel);
+  }
+
+  .step-num {
+    font-family:'Orbitron', monospace;
+    font-size:10px;
+    font-weight:700;
+    color: var(--green);
+    border: 1px solid var(--green);
+    width:28px; height:28px;
+    display:flex; align-items:center; justify-content:center;
+    flex-shrink:0;
+    letter-spacing:0;
+  }
+
+  .step p {
+    font-size:14px;
+    margin:0;
+    color: var(--text);
+  }
+
+  .step strong {
+    color: var(--cyan);
+    font-weight:700;
+  }
+
+  /* SLIDE COLORS */
+  #s4 { background: linear-gradient(135deg, #020408 0%, #050a0f 100%); }
+  #s5 { background: linear-gradient(135deg, #050408 0%, #0a0508 100%); }
+  #s5 .stage-number { color: rgba(255,34,68,0.04); }
+  #s5 h2 { color: var(--red); text-shadow: 0 0 20px rgba(255,34,68,0.4); }
+  #s5 .stage-badge { color: var(--cyan); border-color: var(--cyan); }
+
+  #s6 { background: var(--bg2); }
+  #s7 { background: var(--bg); }
+  #s8 { background: var(--bg2); }
+  #s9 { background: linear-gradient(135deg, #08020a 0%, #0a0208 100%); }
+  #s9 h2 { color: var(--red); text-shadow: 0 0 20px rgba(255,34,68,0.5); }
+  #s9 .stage-number { color: rgba(255,34,68,0.04); }
+
+  /* ========== SLIDE 10: STATS ========== */
+  #s10 { background: var(--bg); }
+
+  .stats-row {
+    display:grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap:24px;
+    margin:40px 0;
+    max-width:900px;
+  }
+
+  .stat-box {
+    border: 1px solid var(--border);
+    padding:24px 20px;
+    background: var(--panel);
+    text-align:center;
+    transition: all 0.3s;
+  }
+
+  .stat-box:hover {
+    border-color: var(--green);
+    box-shadow: 0 0 30px rgba(0,255,136,0.1);
+  }
+
+  .stat-val {
+    font-family:'Orbitron', monospace;
+    font-size:clamp(20px, 3vw, 36px);
+    font-weight:900;
+    color: var(--green);
+    display:block;
+    text-shadow: 0 0 20px rgba(0,255,136,0.5);
+  }
+
+  .stat-label {
+    font-family:'Share Tech Mono', monospace;
+    font-size:10px;
+    color: var(--muted);
+    letter-spacing:2px;
+    display:block;
+    margin-top:8px;
+  }
+
+  /* Chart */
+  .chart-container {
+    max-width:700px;
+    margin-top:16px;
+    position:relative;
+  }
+
+  .chart-bars {
+    display:flex;
+    align-items:flex-end;
+    gap:8px;
+    height:160px;
+    border-bottom: 1px solid var(--border);
+    border-left: 1px solid var(--border);
+    padding:0 0 0 8px;
+  }
+
+  .bar-wrap {
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap:8px;
+    flex:1;
+  }
+
+  .bar {
+    width:100%;
+    background: linear-gradient(180deg, var(--green) 0%, rgba(0,255,136,0.3) 100%);
+    border-radius:2px 2px 0 0;
+    position:relative;
+    transition: all 0.3s;
+    box-shadow: 0 0 10px rgba(0,255,136,0.3);
+    animation: grow 1.5s ease-out forwards;
+    transform-origin: bottom;
+  }
+
+  @keyframes grow {
+    from { transform: scaleY(0); }
+    to { transform: scaleY(1); }
+  }
+
+  .bar-label {
+    font-family:'Share Tech Mono', monospace;
+    font-size:9px;
+    color: var(--muted);
+    letter-spacing:1px;
+    white-space:nowrap;
+  }
+
+  /* ========== SLIDE 11: DEFENSE ========== */
+  #s11 { background: var(--bg2); }
+  #s11 h2 { color: var(--cyan); text-shadow: 0 0 20px rgba(0,238,255,0.3); }
+
+  .defense-grid {
+    display:grid;
+    grid-template-columns: 1fr 1fr;
+    gap:24px;
+    margin-top:32px;
+    max-width:800px;
+  }
+
+  .defense-card {
+    border: 1px solid rgba(0,238,255,0.15);
+    padding:28px;
+    background: rgba(0,238,255,0.03);
+    transition: all 0.3s;
+  }
+
+  .defense-card:hover {
+    border-color: var(--cyan);
+    background: rgba(0,238,255,0.07);
+    transform: translateY(-3px);
+  }
+
+  .defense-card h4 {
+    font-family:'Orbitron', monospace;
+    font-size:13px;
+    color: var(--cyan);
+    letter-spacing:2px;
+    margin-bottom:12px;
+  }
+
+  .defense-card p {
+    font-size:13px;
+    color: var(--muted);
+    line-height:1.7;
+  }
+
+  .shield-icon {
+    font-size:32px;
+    margin-bottom:12px;
+    display:block;
+  }
+
+  .status-bar {
+    display:flex;
+    align-items:center;
+    gap:12px;
+    margin-top:12px;
+  }
+
+  .status-bar-fill {
+    flex:1;
+    height:4px;
+    background: rgba(0,238,255,0.1);
+    border-radius:2px;
+    overflow:hidden;
+  }
+
+  .status-bar-fill div {
+    height:100%;
+    background: var(--cyan);
+    border-radius:2px;
+    box-shadow: 0 0 8px var(--cyan);
+  }
+
+  .status-pct {
+    font-family:'Share Tech Mono', monospace;
+    font-size:11px;
+    color: var(--cyan);
+    width:40px;
+    text-align:right;
+  }
+
+  /* ========== SLIDE 12: Q&A ========== */
+  #s12 {
+    background: radial-gradient(ellipse 60% 60% at 50% 50%, rgba(0,255,136,0.05) 0%, transparent 70%),
+                var(--bg);
+    align-items:center;
+    text-align:center;
+  }
+
+  .qa-grid {
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap:32px;
+  }
+
+  .contact-list {
+    display:flex;
+    gap:40px;
+    margin-top:16px;
+    flex-wrap:wrap;
+    justify-content:center;
+  }
+
+  .contact-item {
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap:8px;
+    padding:24px 32px;
+    border: 1px solid var(--border);
+    background: var(--panel);
+    min-width:180px;
+    transition: all 0.3s;
+    cursor:pointer;
+  }
+
+  .contact-item:hover {
+    border-color: var(--green);
+    box-shadow: 0 0 30px rgba(0,255,136,0.15);
+    transform: translateY(-4px);
+  }
+
+  .contact-item span:first-child { font-size:28px; }
+
+  .contact-item .c-label {
+    font-family:'Share Tech Mono', monospace;
+    font-size:10px;
+    color: var(--muted);
+    letter-spacing:3px;
+    text-transform:uppercase;
+  }
+
+  .contact-item .c-val {
+    font-family:'Share Tech Mono', monospace;
+    font-size:12px;
+    color: var(--green);
+    letter-spacing:1px;
+  }
+
+  .qa-prompt {
+    font-family:'Orbitron', monospace;
+    font-size:clamp(32px, 6vw, 72px);
+    font-weight:900;
+    color: var(--green);
+    animation: pulse-glow 3s ease-in-out infinite;
+    letter-spacing:4px;
+  }
+
+  @keyframes pulse-glow {
+    0%,100% { text-shadow: 0 0 20px rgba(0,255,136,0.4), 0 0 40px rgba(0,255,136,0.1); }
+    50% { text-shadow: 0 0 40px rgba(0,255,136,0.8), 0 0 80px rgba(0,255,136,0.3), 0 0 120px rgba(0,255,136,0.1); }
+  }
+
+  /* GLITCH */
+  .glitch {
+    position:relative;
+  }
+
+  .glitch::before, .glitch::after {
+    content: attr(data-text);
+    position:absolute;
+    left:0; top:0;
+    width:100%;
+    height:100%;
+  }
+
+  .glitch::before {
+    color: var(--red);
+    animation: glitch1 4s infinite;
+    clip-path: polygon(0 0, 100% 0, 100% 35%, 0 35%);
+  }
+
+  .glitch::after {
+    color: var(--cyan);
+    animation: glitch2 4s infinite;
+    clip-path: polygon(0 65%, 100% 65%, 100% 100%, 0 100%);
+  }
+
+  @keyframes glitch1 {
+    0%,95%,100% { transform: translate(0); opacity:0; }
+    96% { transform: translate(-4px, 2px); opacity:0.8; }
+    97% { transform: translate(4px, -2px); opacity:0.8; }
+    98% { transform: translate(-2px, 0); opacity:0.5; }
+  }
+
+  @keyframes glitch2 {
+    0%,95%,100% { transform: translate(0); opacity:0; }
+    96% { transform: translate(4px, -2px); opacity:0.8; }
+    97% { transform: translate(-4px, 2px); opacity:0.8; }
+    98% { transform: translate(2px, 0); opacity:0.5; }
+  }
+
+  /* SCROLL HINT */
+  .scroll-hint {
+    position:absolute;
+    bottom:32px;
+    left:50%;
+    transform:translateX(-50%);
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap:8px;
+    font-family:'Share Tech Mono', monospace;
+    font-size:10px;
+    color: var(--muted);
+    letter-spacing:3px;
+    animation: bounce 2s ease-in-out infinite;
+  }
+
+  @keyframes bounce {
+    0%,100% { transform: translateX(-50%) translateY(0); }
+    50% { transform: translateX(-50%) translateY(8px); }
+  }
+
+  .scroll-hint::after {
+    content:'';
+    display:block;
+    width:1px;
+    height:32px;
+    background: linear-gradient(180deg, var(--green), transparent);
+  }
+
+  /* TERMINAL CURSOR */
+  .cursor {
+    display:inline-block;
+    width:10px; height:18px;
+    background: var(--green);
+    margin-left:4px;
+    vertical-align:middle;
+    animation: blink 1s step-end infinite;
+  }
+
+  /* PROGRESS BAR */
+  .progress {
+    position:fixed;
+    left:0; top:0;
+    width:3px;
+    height:0%;
+    background: linear-gradient(180deg, var(--green), var(--cyan));
+    z-index:1001;
+    transition: height 0.2s;
+    box-shadow: 0 0 10px var(--green);
+  }
+
+  /* RESPONSIVE */
+  @media (max-width:768px) {
+    section { padding: 100px 24px 60px; }
+    nav { padding: 16px 24px; }
+    .anatomy-grid { grid-template-columns: 1fr; }
+    .stats-row { grid-template-columns: 1fr 1fr; }
+    .defense-grid { grid-template-columns: 1fr; }
+    .virus-art { display:none; }
+    .stage-number { font-size:80px; }
+    .contact-list { flex-direction:column; align-items:center; }
+  }
+</style>
+</head>
+<body>
+
+<div class="progress" id="progress"></div>
+
+<!-- NAV -->
+<nav>
+  <div class="nav-logo">VI<span>3</span>US</div>
+  <div style="display:flex;gap:16px;align-items:center;">
+    <div class="nav-dots" id="navDots">
+      <div class="nav-dot active" data-slide="0"></div>
+      <div class="nav-dot" data-slide="1"></div>
+      <div class="nav-dot" data-slide="2"></div>
+      <div class="nav-dot" data-slide="3"></div>
+      <div class="nav-dot" data-slide="4"></div>
+      <div class="nav-dot" data-slide="5"></div>
+      <div class="nav-dot" data-slide="6"></div>
+      <div class="nav-dot" data-slide="7"></div>
+      <div class="nav-dot" data-slide="8"></div>
+      <div class="nav-dot" data-slide="9"></div>
+      <div class="nav-dot" data-slide="10"></div>
+      <div class="nav-dot" data-slide="11"></div>
+    </div>
+    <div class="nav-counter" id="slideCounter">01 / 12</div>
+  </div>
+</nav>
+
+<!-- ===== SLIDE 1: TITLE ===== -->
+<section id="s1">
+  <div class="grid-bg"></div>
+  <div class="particles" id="particles"></div>
+
+  <div class="title-sub">// БІОЛОГІЧНА КІБЕРАТАКА //</div>
+  <h1 class="glitch" data-text="VI3US">VI3US</h1>
+  <h1 style="font-size:clamp(20px,4vw,52px);margin-top:8px;">ЗЛАМ КЛІТИННОЇ<br>СИСТЕМИ</h1>
+
+  <div class="title-desc">
+    ПРОТОКОЛ ЗАРАЖЕННЯ_<span class="cursor"></span><br>
+    СТАТУС: АКТИВНИЙ<br>
+    ЦІЛЬ: КЛІТИНА-ХОСТ<br>
+    ВЕРСІЯ: 2.0.24
+  </div>
+
+  <!-- SVG Virus -->
+  <svg class="virus-art" viewBox="0 0 400 400" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <filter id="glow">
+        <feGaussianBlur stdDeviation="3" result="blur"/>
+        <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+      </filter>
+      <radialGradient id="vg" cx="50%" cy="50%" r="50%">
+        <stop offset="0%" stop-color="#00ff88" stop-opacity="0.3"/>
+        <stop offset="100%" stop-color="#00ff88" stop-opacity="0"/>
+      </radialGradient>
+    </defs>
+    <circle cx="200" cy="200" r="180" fill="url(#vg)"/>
+    <circle cx="200" cy="200" r="90" fill="none" stroke="#00ff88" stroke-width="1.5" opacity="0.4" filter="url(#glow)">
+      <animateTransform attributeName="transform" type="rotate" from="0 200 200" to="360 200 200" dur="20s" repeatCount="indefinite"/>
+    </circle>
+    <circle cx="200" cy="200" r="60" fill="none" stroke="#00ff88" stroke-width="1" opacity="0.6" stroke-dasharray="8 4">
+      <animateTransform attributeName="transform" type="rotate" from="360 200 200" to="0 200 200" dur="12s" repeatCount="indefinite"/>
+    </circle>
+    <circle cx="200" cy="200" r="30" fill="rgba(0,255,136,0.15)" stroke="#00ff88" stroke-width="2" filter="url(#glow)"/>
+    <circle cx="200" cy="200" r="12" fill="#00ff88" opacity="0.6" filter="url(#glow)">
+      <animate attributeName="r" values="12;16;12" dur="2s" repeatCount="indefinite"/>
+    </circle>
+    <!-- Spikes -->
+    <g stroke="#00ff88" stroke-width="1.5" opacity="0.5" filter="url(#glow)">
+      <line x1="200" y1="110" x2="200" y2="80"/><circle cx="200" cy="76" r="4" fill="#00ff88"/>
+      <line x1="200" y1="290" x2="200" y2="320"/><circle cx="200" cy="324" r="4" fill="#00ff88"/>
+      <line x1="110" y1="200" x2="80" y2="200"/><circle cx="76" cy="200" r="4" fill="#00ff88"/>
+      <line x1="290" y1="200" x2="320" y2="200"/><circle cx="324" cy="200" r="4" fill="#00ff88"/>
+      <line x1="136" y1="136" x2="114" y2="114"/><circle cx="110" cy="110" r="4" fill="#ff2244"/>
+      <line x1="264" y1="136" x2="286" y2="114"/><circle cx="290" cy="110" r="4" fill="#ff2244"/>
+      <line x1="136" y1="264" x2="114" y2="286"/><circle cx="110" cy="290" r="4" fill="#ff2244"/>
+      <line x1="264" y1="264" x2="286" y2="286"/><circle cx="290" cy="290" r="4" fill="#ff2244"/>
+    </g>
+    <!-- Orbit dots -->
+    <g opacity="0.3">
+      <animateTransform attributeName="transform" type="rotate" from="0 200 200" to="360 200 200" dur="8s" repeatCount="indefinite"/>
+      <circle cx="200" cy="110" r="3" fill="#00eeff"/>
+      <circle cx="290" cy="200" r="3" fill="#00eeff"/>
+      <circle cx="200" cy="290" r="3" fill="#00eeff"/>
+      <circle cx="110" cy="200" r="3" fill="#00eeff"/>
+    </g>
+  </svg>
+
+  <div class="scroll-hint">SCROLL</div>
+</section>
+
+<!-- ===== SLIDE 2: INTRO ===== -->
+<section id="s2">
+  <div class="grid-bg"></div>
+  <div class="slide-label">СЛАЙД 02 · ВСТУП</div>
+  <h2>Що таке вірус?</h2>
+  <h3>БІОЛОГІЧНИЙ КОД ПОЗА ЗАКОНОМ</h3>
+  <p>Вірус — це субклітинний інфекційний агент, що реплікується виключно всередині живих клітин. Він не є «живим» у класичному розумінні — це програма без власного процесора, яка захоплює чужий.</p>
+
+  <div class="code-block">
+    <div class="code-label">ВИЗНАЧЕННЯ_ВІРУСУ.bio</div>
+    <span class="comment">// Характеристики вірусу</span><br>
+    <span class="keyword">структура</span>: <span class="value">нуклеїнова кислота + капсид</span><br>
+    <span class="keyword">розмір</span>: <span class="value">20–300 нанометрів</span><br>
+    <span class="keyword">реплікація</span>: <span class="value">лише всередині хост-клітини</span><br>
+    <span class="keyword">метаболізм</span>: <span class="value">відсутній (паразит)</span><br>
+    <span class="keyword">мутація</span>: <span class="value">висока швидкість змін</span><br>
+    <span class="comment">// Вірус = зброя, яка перепрограмовує систему</span>
+  </div>
+</section>
+
+<!-- ===== SLIDE 3: ANATOMY ===== -->
+<section id="s3">
+  <div class="grid-bg"></div>
+  <div class="slide-label">СЛАЙД 03 · АНАТОМІЯ АГРЕСОРА</div>
+  <h2>Будова вірусу</h2>
+  <h3>КАПСИД ТА НУКЛЕЇНОВА КИСЛОТА</h3>
+
+  <div class="anatomy-grid">
+    <div class="anatomy-card" data-num="01">
+      <span class="anatomy-icon">🧬</span>
+      <h4>НУКЛЕЇНОВА КИСЛОТА</h4>
+      <p>ДНК або РНК — «вихідний код» вірусу. Містить інструкції для створення нових копій. Може бути одно- або дволанцюговою.</p>
+    </div>
+    <div class="anatomy-card" data-num="02">
+      <span class="anatomy-icon">🔷</span>
+      <h4>КАПСИД</h4>
+      <p>Білковий «панцир» навколо геному. Захищає генетичний матеріал та допомагає вірусу прикріплятися до клітини-мішені.</p>
+    </div>
+    <div class="anatomy-card" data-num="03">
+      <span class="anatomy-icon">🫧</span>
+      <h4>ЛІПІДНА ОБОЛОНКА</h4>
+      <p>Є у деяких вірусів (наприклад, COVID-19). Двошарова мембрана з шипоподібними білками для розпізнавання рецепторів.</p>
+    </div>
+    <div class="anatomy-card" data-num="04">
+      <span class="anatomy-icon">🔑</span>
+      <h4>ПОВЕРХНЕВІ БІЛКИ</h4>
+      <p>«Ключі» для входу в клітину. Кожен вірус має специфічні білки для зв'язку з конкретними рецепторами хоста.</p>
+    </div>
+    <div class="anatomy-card" data-num="05">
+      <span class="anatomy-icon">⚗️</span>
+      <h4>ВІРУСНІ ФЕРМЕНТИ</h4>
+      <p>Деякі віруси несуть власні ферменти (полімерази, зворотні транскриптази) для реплікації генетичного матеріалу.</p>
+    </div>
+    <div class="anatomy-card" data-num="06">
+      <span class="anatomy-icon">📐</span>
+      <h4>СИМЕТРІЯ КАПСИДУ</h4>
+      <p>Ікосаедральна (кулеподібна), спіральна або комплексна форма. Математично досконала архітектура на нанорівні.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ===== SLIDE 4: ADSORPTION ===== -->
+<section id="s4">
+  <div class="grid-bg"></div>
+  <div class="stage-number">01</div>
+  <div class="slide-label">СЛАЙД 04 · ЕТАП 1</div>
+  <div class="stage-badge">// ПРОТОКОЛ ІНІЦІЙОВАНО //</div>
+  <h2>Адсорбція</h2>
+  <h3>ПОШУК «ЧОРНОГО ВХОДУ» · РЕЦЕПТОРИ КЛІТИНИ</h3>
+  <p>Перший крок — вірус «сканує» поверхню клітини у пошуку специфічних рецепторів. Це як підбір ключа до замка.</p>
+  <div class="process-steps">
+    <div class="step">
+      <div class="step-num">→</div>
+      <p><strong>Сканування поверхні:</strong> вірус хаотично переміщується та зондує мембрану клітини-хоста.</p>
+    </div>
+    <div class="step">
+      <div class="step-num">→</div>
+      <p><strong>Розпізнавання рецептора:</strong> поверхневі білки вірусу зв'язуються з комплементарними рецепторами клітини.</p>
+    </div>
+    <div class="step">
+      <div class="step-num">→</div>
+      <p><strong>Фіксація:</strong> утворюється міцний зв'язок. Вірус «причалює» до поверхні клітини.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ===== SLIDE 5: PENETRATION ===== -->
+<section id="s5">
+  <div class="grid-bg"></div>
+  <div class="stage-number">02</div>
+  <div class="slide-label">СЛАЙД 05 · ЕТАП 2</div>
+  <div class="stage-badge" style="color:var(--cyan);border-color:var(--cyan);">// ПРОРИВ ЗАХИСТУ //</div>
+  <h2>Проникнення</h2>
+  <h3>ІН'ЄКЦІЯ КОДУ</h3>
+  <p>Після адсорбції вірус впроваджує свій генетичний матеріал безпосередньо у цитоплазму клітини. Захист пробито.</p>
+  <div class="process-steps">
+    <div class="step">
+      <div class="step-num">→</div>
+      <p><strong>Ендоцитоз:</strong> клітина «поглинає» вірус, загортаючи його в мембранний міхурець (ендосому).</p>
+    </div>
+    <div class="step">
+      <div class="step-num">→</div>
+      <p><strong>Злиття мембран:</strong> оболонка вірусу зливається з клітинною мембраною, вивільняючи вміст.</p>
+    </div>
+    <div class="step">
+      <div class="step-num">→</div>
+      <p><strong>Ін'єкція ДНК/РНК:</strong> генетичний матеріал вірусу потрапляє до цитоплазми або ядра клітини.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ===== SLIDE 6: UNCOATING ===== -->
+<section id="s6">
+  <div class="grid-bg"></div>
+  <div class="stage-number">03</div>
+  <div class="slide-label">СЛАЙД 06 · ЕТАП 3</div>
+  <div class="stage-badge">// РОЗПАКУВАННЯ //</div>
+  <h2>Декапсидація</h2>
+  <h3>РОЗПАКУВАННЯ АРХІВУ ДАНИХ</h3>
+  <p>Капсид розчиняється — клітинні ферменти руйнують білкову оболонку вірусу. Генетичний код тепер вільний і готовий до дії.</p>
+  <div class="process-steps">
+    <div class="step">
+      <div class="step-num">→</div>
+      <p><strong>Дія протеаз:</strong> клітинні ферменти розщеплюють білки капсиду, звільняючи нуклеїнову кислоту.</p>
+    </div>
+    <div class="step">
+      <div class="step-num">→</div>
+      <p><strong>Транспорт до ядра:</strong> вірусний геном транспортується до ядра клітини через ядерні пори.</p>
+    </div>
+    <div class="step">
+      <div class="step-num">→</div>
+      <p><strong>Інтеграція:</strong> деякі віруси (ретровіруси) вбудовуються у хромосоми хоста назавжди.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ===== SLIDE 7: REPLICATION ===== -->
+<section id="s7">
+  <div class="grid-bg"></div>
+  <div class="stage-number">04</div>
+  <div class="slide-label">СЛАЙД 07 · ЕТАП 4</div>
+  <div class="stage-badge">// ЗАХОПЛЕННЯ КОНТРОЛЮ //</div>
+  <h2>Реплікація</h2>
+  <h3>ЗАХОПЛЕННЯ «ЗАВОДУ» · СИНТЕЗ ВІРУСНИХ ЧАСТИН</h3>
+  <p>Вірусний геном перехоплює «виробничі потужності» клітини — рибосоми, ферменти, енергію — і запускає масове виробництво копій.</p>
+  <div class="process-steps">
+    <div class="step">
+      <div class="step-num">→</div>
+      <p><strong>Транскрипція:</strong> вірусна ДНК/РНК зчитується рибосомами клітини як «наказ» на виробництво.</p>
+    </div>
+    <div class="step">
+      <div class="step-num">→</div>
+      <p><strong>Синтез білків:</strong> клітинні рибосоми синтезують вірусні білки капсиду та поверхневі антигени.</p>
+    </div>
+    <div class="step">
+      <div class="step-num">→</div>
+      <p><strong>Копіювання геному:</strong> вірусна полімераза створює тисячі копій генетичного матеріалу.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ===== SLIDE 8: ASSEMBLY ===== -->
+<section id="s8">
+  <div class="grid-bg"></div>
+  <div class="stage-number">05</div>
+  <div class="slide-label">СЛАЙД 08 · ЕТАП 5</div>
+  <div class="stage-badge">// СКЛАДАЛЬНА ЛІНІЯ //</div>
+  <h2>Збірка</h2>
+  <h3>КОНВЕЄР НОВИХ КОПІЙ</h3>
+  <p>Усі синтезовані компоненти самостійно збираються у нові вірусні частки. Цей процес відбувається автономно без участі клітинних «менеджерів».</p>
+  <div class="process-steps">
+    <div class="step">
+      <div class="step-num">→</div>
+      <p><strong>Самоскладання:</strong> білки капсиду автоматично оточують нуклеїнову кислоту завдяки хімічним зв'язкам.</p>
+    </div>
+    <div class="step">
+      <div class="step-num">→</div>
+      <p><strong>Дозрівання:</strong> нові вірусні частки проходять конформаційні зміни, набуваючи інфекційних властивостей.</p>
+    </div>
+    <div class="step">
+      <div class="step-num">→</div>
+      <p><strong>Масштаб:</strong> за кілька годин одна клітина продукує 10 000–100 000 нових вірусних частинок.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ===== SLIDE 9: EXIT ===== -->
+<section id="s9">
+  <div class="grid-bg"></div>
+  <div class="stage-number">06</div>
+  <div class="slide-label">СЛАЙД 09 · ЕТАП 6</div>
+  <div class="stage-badge" style="color:var(--red);border-color:var(--red);">// КРИТИЧНА ПОМИЛКА //</div>
+  <h2>Вихід</h2>
+  <h3>СИСТЕМА ПЕРЕВАНТАЖЕНА · РУЙНУВАННЯ КЛІТИНИ</h3>
+  <p>Фінальна стадія — новостворені вірусні частки залишають клітину, щоб інфікувати нові цілі. Клітина-хост знищена.</p>
+  <div class="process-steps">
+    <div class="step">
+      <div class="step-num">→</div>
+      <p><strong>Лізис:</strong> клітина «вибухає» зсередини під тиском нових вірусів — усі частинки вивільняються одночасно.</p>
+    </div>
+    <div class="step">
+      <div class="step-num">→</div>
+      <p><strong>Брунькування:</strong> оболонкові віруси «відокремлюються» від мембрани, не руйнуючи клітину одразу.</p>
+    </div>
+    <div class="step">
+      <div class="step-num">→</div>
+      <p><strong>Поширення:</strong> тисячі нових вірусних частинок атакують сусідні клітини — цикл повторюється по колу.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ===== SLIDE 10: STATS ===== -->
+<section id="s10">
+  <div class="grid-bg"></div>
+  <div class="slide-label">СЛАЙД 10 · СТАТИСТИКА</div>
+  <h2>Швидкість поширення</h2>
+  <h3>ДАНІ МОНІТОРИНГУ В РЕАЛЬНОМУ ЧАСІ</h3>
+
+  <div class="stats-row">
+    <div class="stat-box">
+      <span class="stat-val">10³¹</span>
+      <span class="stat-label">ВІРУСІВ НА ЗЕМЛІ</span>
+    </div>
+    <div class="stat-box">
+      <span class="stat-val">20 нм</span>
+      <span class="stat-label">МІН. РОЗМІР</span>
+    </div>
+    <div class="stat-box">
+      <span class="stat-val">6 год</span>
+      <span class="stat-label">ЦИКЛ РЕПЛІКАЦІЇ</span>
+    </div>
+    <div class="stat-box">
+      <span class="stat-val">10⁵</span>
+      <span class="stat-label">КОПІЙ З КЛІТИНИ</span>
+    </div>
+  </div>
+
+  <div class="chart-container">
+    <p style="font-family:'Share Tech Mono';font-size:11px;color:var(--muted);letter-spacing:2px;margin-bottom:16px;">ЗРОСТАННЯ ВІРУСНОГО НАВАНТАЖЕННЯ (УМОВНІ ОДИНИЦІ)</p>
+    <div class="chart-bars">
+      <div class="bar-wrap">
+        <div class="bar" style="height:12%;animation-delay:0.1s;"></div>
+        <div class="bar-label">0г</div>
+      </div>
+      <div class="bar-wrap">
+        <div class="bar" style="height:20%;animation-delay:0.2s;"></div>
+        <div class="bar-label">1г</div>
+      </div>
+      <div class="bar-wrap">
+        <div class="bar" style="height:32%;animation-delay:0.3s;"></div>
+        <div class="bar-label">2г</div>
+      </div>
+      <div class="bar-wrap">
+        <div class="bar" style="height:48%;animation-delay:0.4s;"></div>
+        <div class="bar-label">4г</div>
+      </div>
+      <div class="bar-wrap">
+        <div class="bar" style="height:62%;animation-delay:0.5s;"></div>
+        <div class="bar-label">6г</div>
+      </div>
+      <div class="bar-wrap">
+        <div class="bar" style="height:75%;animation-delay:0.6s;background:linear-gradient(180deg,#ffbb00,rgba(255,187,0,0.3));box-shadow:0 0 10px rgba(255,187,0,0.4);"></div>
+        <div class="bar-label">12г</div>
+      </div>
+      <div class="bar-wrap">
+        <div class="bar" style="height:88%;animation-delay:0.7s;background:linear-gradient(180deg,#ff2244,rgba(255,34,68,0.3));box-shadow:0 0 10px rgba(255,34,68,0.4);"></div>
+        <div class="bar-label">24г</div>
+      </div>
+      <div class="bar-wrap">
+        <div class="bar" style="height:100%;animation-delay:0.8s;background:linear-gradient(180deg,#ff2244,rgba(255,34,68,0.3));box-shadow:0 0 15px rgba(255,34,68,0.6);"></div>
+        <div class="bar-label">48г</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== SLIDE 11: DEFENSE ===== -->
+<section id="s11">
+  <div class="grid-bg"></div>
+  <div class="slide-label">СЛАЙД 11 · ЗАХИСТ СИСТЕМИ</div>
+  <h2>Імунітет та вакцини</h2>
+  <h3>АНТИВІРУСНИЙ ПРОТОКОЛ</h3>
+
+  <div class="defense-grid">
+    <div class="defense-card">
+      <span class="shield-icon">🛡️</span>
+      <h4>ВРОДЖЕНИЙ ІМУНІТЕТ</h4>
+      <p>Перша лінія захисту. Неспецифічна реакція: інтерферони, NK-клітини, макрофаги. Активується протягом хвилин.</p>
+      <div class="status-bar">
+        <div class="status-bar-fill"><div style="width:75%"></div></div>
+        <span class="status-pct">75%</span>
+      </div>
+    </div>
+    <div class="defense-card">
+      <span class="shield-icon">🎯</span>
+      <h4>АДАПТИВНИЙ ІМУНІТЕТ</h4>
+      <p>B-лімфоцити виробляють антитіла — специфічні «ключі», що нейтралізують саме цей вірус. Формується 7-14 днів.</p>
+      <div class="status-bar">
+        <div class="status-bar-fill"><div style="width:92%"></div></div>
+        <span class="status-pct">92%</span>
+      </div>
+    </div>
+    <div class="defense-card">
+      <span class="shield-icon">💉</span>
+      <h4>ВАКЦИНАЦІЯ</h4>
+      <p>Тренує імунну систему без реального зараження. Вводить антиген (або мРНК-інструкцію) для формування пам'яті.</p>
+      <div class="status-bar">
+        <div class="status-bar-fill"><div style="width:98%"></div></div>
+        <span class="status-pct">98%</span>
+      </div>
+    </div>
+    <div class="defense-card">
+      <span class="shield-icon">🧪</span>
+      <h4>ПРОТИВІРУСНІ ПРЕПАРАТИ</h4>
+      <p>Блокують специфічні стадії вірусного циклу: інгібітори протеаз, полімераз або нейрамінідази (Таміфлю).</p>
+      <div class="status-bar">
+        <div class="status-bar-fill"><div style="width:65%"></div></div>
+        <span class="status-pct">65%</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== SLIDE 12: Q&A ===== -->
+<section id="s12">
+  <div class="grid-bg"></div>
+  <div class="qa-grid">
+    <div class="slide-label" style="justify-content:center;">СЛАЙД 12 · КІНЕЦЬ ПРЕЗЕНТАЦІЇ</div>
+    <div class="qa-prompt">Q&A</div>
+    <p style="text-align:center;font-family:'Share Tech Mono';font-size:13px;color:var(--muted);letter-spacing:2px;max-width:500px;">Your questions, my mission.<br>Contact me below</p>
+    <div class="contact-list">
+      <div class="contact-item">
+        <span>📧</span>
+        <span class="c-label">EMAIL</span>
+        <span class="c-val">2xw4xed@proton.me</span>
+      </div>
+      <div class="contact-item">
+        <span>🌐</span>
+        <span class="c-label">SITE
+        </span>
+        <span class="c-val">Soon</span>
+      </div>
+      <div class="contact-item">
+        <span>💬</span>
+        <span class="c-label">TELEGRAM</span>
+        <span class="c-val">@userdeleted888</span>
+      </div>
+    </div>
+    <p style="font-family:'Share Tech Mono';font-size:10px;color:var(--muted);letter-spacing:3px;text-align:center;">
+      THANKS FOR WATCHING · VI3US © 2026 · ЗЛАМ КЛІТИННОЇ СИСТЕМИ
+    </p>
+  </div>
+</section>
+
+<script>
+  // Particles
+  const container = document.getElementById('particles');
+  for(let i=0;i<30;i++){
+    const p = document.createElement('div');
+    p.className='particle';
+    p.style.left = Math.random()*100+'%';
+    p.style.setProperty('--dx', (Math.random()-0.5)*100+'px');
+    p.style.animationDuration = (8+Math.random()*12)+'s';
+    p.style.animationDelay = (Math.random()*10)+'s';
+    p.style.opacity = Math.random()*0.6;
+    container.appendChild(p);
+  }
+
+  // Scroll progress & nav
+  const sections = document.querySelectorAll('section');
+  const dots = document.querySelectorAll('.nav-dot');
+  const counter = document.getElementById('slideCounter');
+  const progress = document.getElementById('progress');
+
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(e => {
+      if(e.isIntersecting){
+        const idx = Array.from(sections).indexOf(e.target);
+        dots.forEach(d => d.classList.remove('active'));
+        if(dots[idx]) dots[idx].classList.add('active');
+        counter.textContent = String(idx+1).padStart(2,'0') + ' / 12';
+      }
+    });
+  }, {threshold: 0.5});
+
+  sections.forEach(s => observer.observe(s));
+
+  window.addEventListener('scroll', () => {
+    const pct = window.scrollY / (document.body.scrollHeight - window.innerHeight);
+    progress.style.height = (pct*100)+'%';
+  });
+
+  dots.forEach(d => {
+    d.addEventListener('click', () => {
+      const idx = parseInt(d.dataset.slide);
+      sections[idx].scrollIntoView({behavior:'smooth'});
+    });
+  });
+</script>
+</body>
+</html>
